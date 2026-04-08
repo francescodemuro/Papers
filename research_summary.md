@@ -1,46 +1,24 @@
 # Research Summary: Data-Driven Real Estate Investment Decision Model under Uncertainty
 
 ## Introduction
-Real estate allocation decisions require integrating predictive valuation, financing structure, and uncertainty quantification. Traditional deterministic underwriting often obscures downside risk and parameter sensitivity. This project develops a coherent quantitative framework that merges machine learning, cash-flow valuation, and stochastic simulation to support institutional-quality investment decisions.
+Real-estate underwriting is often deterministic despite substantial macro and financing uncertainty. This project develops an integrated quantitative framework combining machine learning valuation, levered cash-flow analytics, and Monte Carlo simulation for risk-aware investment decisions.
 
 ## Methodology
-
-### Data and feature design
-A synthetic but economically grounded panel dataset was generated to emulate transaction-level real-estate data over time. The data-generating process includes:
-- property-level hedonic characteristics,
-- location quality proxies,
-- macroeconomic state variables,
-- trend and cyclical dynamics.
-
-Feature engineering includes non-linear and interaction terms to capture realistic pricing behavior and improve model expressiveness.
-
-### Predictive modeling
-Three supervised regression models were benchmarked: Linear Regression, Random Forest, and Gradient Boosting. Models were trained and validated using out-of-sample R² and RMSE to identify a robust pricing engine.
-
-### Financial valuation
-A levered cash-flow model was implemented with acquisition costs, mortgage amortization, net operating income, and terminal sale proceeds. Investment performance was assessed via NPV, IRR, and payback period.
-
-### Risk and uncertainty
-Monte Carlo simulation (12,000 paths) was used to model uncertainty in annual property appreciation and rental growth. For each path, full investment cash flows were recomputed and mapped to IRR/NPV distributions.
-
-### Sensitivity and scenario analysis
-A grid-based sensitivity framework measured valuation elasticity to:
-- interest rates,
-- purchase price,
-- rental levels.
-
-Bear/Base/Bull scenarios were then used to compare median returns and downside probabilities in distinct market regimes.
+- **Data design:** synthetic panel with realistic relationships among property features, location quality, macro state variables, and time dynamics.
+- **Predictive modeling:** Linear Regression, Random Forest, and Gradient Boosting with train/validation/test evaluation via R² and RMSE.
+- **Financial modeling:** annual levered cash-flow engine with acquisition costs, amortizing debt, NOI, and terminal sale.
+- **Risk modeling:** Monte Carlo simulation (12,000 paths) with uncertainty in property growth, rent growth, and borrowing-rate paths via mean-reverting dynamics.
+- **Sensitivity/scenarios:** deterministic grid for interest rate, purchase price, and rent; Bear/Base/Bull scenario comparison.
 
 ## Results
-- Nonlinear ensemble methods outperform linear baselines in out-of-sample pricing accuracy.
-- Stochastic return distributions reveal that attractive expected returns can coexist with nontrivial downside tail risk.
-- Financing cost and entry price are dominant drivers of NPV/IRR outcomes.
-- Scenario analysis provides clear decision boundaries under regime uncertainty.
+- Ensemble models outperform linear baselines in out-of-sample valuation quality.
+- Return distributions highlight meaningful tail risk even when median outcomes are favorable.
+- Interest-rate paths and entry valuation are dominant drivers of NPV and IRR.
 
 ## Limitations
-- Synthetic data, while structurally realistic, cannot fully replicate local market microstructure.
-- Growth-rate innovations are modeled with simple Gaussian assumptions and may understate fat tails.
-- The model abstracts from taxes, capex shocks, and dynamic refinancing options.
+- Synthetic data does not capture full market microstructure and transaction frictions.
+- Gaussian innovation assumptions may underrepresent heavy-tail events.
+- Model excludes taxes, major capex shocks, and active refinancing/optionality.
 
 ## Conclusion
-The project demonstrates a graduate-level, integrated quant-finance workflow for real-estate investment analytics. By combining ML prediction, levered cash-flow valuation, Monte Carlo risk simulation, and sensitivity diagnostics, the framework moves underwriting from deterministic point-estimation toward probabilistic decision intelligence suitable for institutional investment committees.
+The project demonstrates a graduate-level decision framework for real-estate capital allocation: predictive valuation + financing-aware cash-flow modeling + probabilistic downside quantification.
