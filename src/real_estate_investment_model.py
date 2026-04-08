@@ -1,12 +1,12 @@
-"""Core quantitative framework for data-driven real estate investment analysis.
+"""Investment-grade real estate decision engine.
 
-This module provides:
-1) Synthetic but economically grounded real-estate panel data generation
-2) Feature engineering utilities
-3) Machine-learning model training/evaluation with validation split
-4) Levered cash-flow modeling and valuation metrics
-5) Monte Carlo risk simulation with stochastic growth + interest rates
-6) Sensitivity analysis wrappers
+This module upgrades the project from an academic demo to a practical
+capital-allocation workflow with:
+- hybrid real+synthetic data construction,
+- walk-forward model validation,
+- correlated regime-based Monte Carlo,
+- realistic levered cash-flow analytics,
+- multi-case investment recommendations.
 """
 
 from __future__ import annotations
@@ -19,123 +19,130 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
 
 
-def _normalize(arr: np.ndarray) -> np.ndarray:
-    arr = np.asarray(arr)
-    return (arr - arr.mean()) / (arr.std() + 1e-8)
+# -----------------------------
+# Data layer
+# -----------------------------
 
 
-def generate_synthetic_real_estate_data(
-    n_properties: int = 2500,
-    years: int = 8,
+def load_real_macro_data(path: str = "data/raw/fred_macro_sample.csv") -> pd.DataFrame:
+    """Load macro data (proxy real series from FRED-style file).
+
+    Expected columns: date, fed_funds, mortgage_30y, cpi_yoy, unemployment, gdp_yoy.
+    """
+    macro = pd.read_csv(path, parse_dates=["date"])
+    required = {"date", "fed_funds", "mortgage_30y", "cpi_yoy", "unemployment", "gdp_yoy"}
+    missing = required - set(macro.columns)
+    if missing:
+        raise ValueError(f"Missing macro columns: {missing}")
+    macro = macro.sort_values("date").reset_index(drop=True)
+    return macro
+
+
+def load_real_housing_index(path: str = "data/raw/zillow_zhvi_sample.csv") -> pd.DataFrame:
+    """Load metro-level housing index data (ZHVI-style sample).
+
+    Expected columns: date, metro, zhvi, rent_index.
+    """
+    zhvi = pd.read_csv(path, parse_dates=["date"])
+    required = {"date", "metro", "zhvi", "rent_index"}
+    missing = required - set(zhvi.columns)
+    if missing:
+        raise ValueError(f"Missing housing columns: {missing}")
+    return zhvi.sort_values(["metro", "date"]).reset_index(drop=True)
+
+
+def build_hybrid_transaction_dataset(
+    n_properties_per_metro: int = 180,
     seed: int = 42,
+    macro_path: str = "data/raw/fred_macro_sample.csv",
+    housing_path: str = "data/raw/zillow_zhvi_sample.csv",
 ) -> pd.DataFrame:
-    """Generate a realistic panel-like dataset of property transactions."""
+    """Construct transaction-like panel using real macro + real housing indices + structural assumptions."""
     rng = np.random.default_rng(seed)
+    macro = load_real_macro_data(macro_path)
+    housing = load_real_housing_index(housing_path)
 
-    n_obs = n_properties * years
-    property_id = np.repeat(np.arange(n_properties), years)
-    year_idx = np.tile(np.arange(years), n_properties)
+    rows: List[pd.DataFrame] = []
+    metros = housing["metro"].unique()
 
-    base_size = rng.normal(1650, 550, n_properties).clip(450, 5500)
-    beds = rng.integers(1, 6, n_properties)
-    baths = (beds - 0.2 + rng.normal(0, 0.5, n_properties)).clip(1, 5)
-    age0 = rng.integers(0, 70, n_properties)
-    dist_cbd = rng.gamma(shape=2.3, scale=4.5, size=n_properties).clip(0.4, 40)
-    school_idx = rng.normal(75, 12, n_properties).clip(30, 100)
-    transit_idx = rng.normal(70, 15, n_properties).clip(20, 100)
-    crime_idx = rng.normal(50, 15, n_properties).clip(10, 95)
+    for metro in metros:
+        mdf = housing[housing["metro"] == metro].copy()
+        mdf = mdf.merge(macro, on="date", how="left")
 
-    size = np.repeat(base_size, years) * (1 + rng.normal(0, 0.01, n_obs))
-    bedrooms = np.repeat(beds, years)
-    bathrooms = np.repeat(baths, years)
-    age = np.repeat(age0, years) + year_idx
-    distance_to_cbd = np.repeat(dist_cbd, years)
-    school_score = np.repeat(school_idx, years)
-    transit_score = np.repeat(transit_idx, years)
-    crime_rate_index = np.repeat(crime_idx, years)
+        n_t = len(mdf)
+        n_obs = n_t * n_properties_per_metro
 
-    t = np.arange(years)
-    mortgage_rate_year = 0.028 + 0.012 * np.sin(t / 1.6) + 0.002 * t + rng.normal(0, 0.002, years)
-    unemployment_year = 0.045 + 0.01 * np.cos(t / 1.4) + rng.normal(0, 0.002, years)
-    inflation_year = 0.021 + 0.005 * np.sin(t / 1.9 + 0.5) + rng.normal(0, 0.0015, years)
-    gdp_growth_year = 0.02 + 0.006 * np.cos(t / 2.1) + rng.normal(0, 0.0018, years)
+        size = rng.normal(1650, 500, n_obs).clip(500, 5000)
+        bedrooms = rng.integers(1, 6, n_obs)
+        bathrooms = (bedrooms - 0.1 + rng.normal(0, 0.5, n_obs)).clip(1, 5)
+        age = rng.integers(0, 80, n_obs)
+        school = rng.normal(72, 12, n_obs).clip(30, 100)
+        transit = rng.normal(68, 15, n_obs).clip(15, 100)
+        crime = rng.normal(50, 14, n_obs).clip(10, 95)
+        dist_cbd = rng.gamma(2.2, 4.2, n_obs).clip(0.5, 45)
 
-    mortgage_rate = np.take(mortgage_rate_year, year_idx)
-    unemployment_rate = np.take(unemployment_year, year_idx)
-    inflation_rate = np.take(inflation_year, year_idx)
-    gdp_growth = np.take(gdp_growth_year, year_idx)
+        repeated = mdf.loc[mdf.index.repeat(n_properties_per_metro)].reset_index(drop=True)
+        loc_score = 0.40 * school + 0.25 * transit - 0.35 * crime - 0.08 * dist_cbd
 
-    loc_quality = (
-        0.35 * _normalize(school_score)
-        + 0.25 * _normalize(transit_score)
-        - 0.30 * _normalize(crime_rate_index)
-        - 0.20 * _normalize(distance_to_cbd)
-    )
+        sale_price = (
+            repeated["zhvi"].values
+            * np.exp(
+                0.00034 * (size - 1500)
+                + 0.045 * (bedrooms - 3)
+                + 0.03 * (bathrooms - 2)
+                - 0.006 * age
+                + 0.0035 * loc_score
+                + rng.normal(0, 0.10, n_obs)
+            )
+        ).clip(80_000, None)
 
-    cycle = 0.04 * np.sin(year_idx / 1.7) + 0.02 * np.cos(year_idx / 0.9)
-    trend = 0.025 * year_idx
+        annual_rent = (
+            repeated["rent_index"].values * 12
+            * (1 + 0.00011 * (size - 1500) + 0.03 * (bedrooms - 3) - 0.004 * age)
+            * np.exp(rng.normal(0, 0.06, n_obs))
+        ).clip(7_000, None)
 
-    log_price = (
-        10.85
-        + 0.00038 * size
-        + 0.052 * bedrooms
-        + 0.045 * bathrooms
-        - 0.008 * age
-        + 0.34 * loc_quality
-        + trend
-        + cycle
-        - 3.8 * mortgage_rate
-        - 1.9 * unemployment_rate
-        + 1.4 * inflation_rate
-        + 2.8 * gdp_growth
-        + rng.normal(0, 0.12, n_obs)
-    )
+        frame = pd.DataFrame(
+            {
+                "date": repeated["date"].values,
+                "metro": metro,
+                "size_sqft": size,
+                "bedrooms": bedrooms,
+                "bathrooms": bathrooms,
+                "age_years": age,
+                "school_score": school,
+                "transit_score": transit,
+                "crime_rate_index": crime,
+                "distance_to_cbd_km": dist_cbd,
+                "fed_funds": repeated["fed_funds"].values,
+                "mortgage_rate": repeated["mortgage_30y"].values,
+                "inflation_rate": repeated["cpi_yoy"].values,
+                "unemployment_rate": repeated["unemployment"].values,
+                "gdp_growth": repeated["gdp_yoy"].values,
+                "sale_price": sale_price,
+                "annual_rent": annual_rent,
+            }
+        )
+        frame["cap_rate"] = frame["annual_rent"] / frame["sale_price"]
+        rows.append(frame)
 
-    sale_price = np.exp(log_price)
-    monthly_rent = (
-        0.0042 * sale_price
-        + 0.18 * size
-        + 55 * bedrooms
-        - 20 * age
-        + rng.normal(0, 260, n_obs)
-    ).clip(500, None)
-    cap_rate = (monthly_rent * 12 / sale_price).clip(0.02, 0.12)
-
-    return pd.DataFrame(
-        {
-            "property_id": property_id,
-            "year_index": year_idx,
-            "size_sqft": size,
-            "bedrooms": bedrooms,
-            "bathrooms": bathrooms,
-            "age_years": age,
-            "distance_to_cbd_km": distance_to_cbd,
-            "school_score": school_score,
-            "transit_score": transit_score,
-            "crime_rate_index": crime_rate_index,
-            "mortgage_rate": mortgage_rate,
-            "unemployment_rate": unemployment_rate,
-            "inflation_rate": inflation_rate,
-            "gdp_growth": gdp_growth,
-            "monthly_rent": monthly_rent,
-            "cap_rate": cap_rate,
-            "sale_price": sale_price,
-        }
-    )
+    out = pd.concat(rows, ignore_index=True)
+    out["year"] = out["date"].dt.year
+    return out
 
 
 def create_model_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
-    """Feature engineering for pricing model."""
     X = df.copy()
     X["log_size"] = np.log(X["size_sqft"])
-    X["size_x_school"] = X["size_sqft"] * X["school_score"] / 100.0
     X["age_sq"] = X["age_years"] ** 2
-    X["bed_bath_ratio"] = X["bedrooms"] / (X["bathrooms"] + 1e-6)
-    X["loc_composite"] = 0.4 * X["school_score"] + 0.3 * X["transit_score"] - 0.3 * X["crime_rate_index"]
-    X["rent_to_price"] = X["monthly_rent"] * 12 / X["sale_price"]
+    X["loc_composite"] = 0.45 * X["school_score"] + 0.30 * X["transit_score"] - 0.35 * X["crime_rate_index"]
+    X["size_x_loc"] = X["size_sqft"] * X["loc_composite"]
+    X["rent_to_price"] = X["annual_rent"] / X["sale_price"]
+
+    metro_dummies = pd.get_dummies(X["metro"], prefix="metro", drop_first=True)
+    X = pd.concat([X, metro_dummies], axis=1)
 
     features = [
         "log_size",
@@ -147,82 +154,104 @@ def create_model_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, List
         "school_score",
         "transit_score",
         "crime_rate_index",
+        "fed_funds",
         "mortgage_rate",
-        "unemployment_rate",
         "inflation_rate",
+        "unemployment_rate",
         "gdp_growth",
-        "size_x_school",
-        "bed_bath_ratio",
-        "loc_composite",
         "cap_rate",
+        "loc_composite",
+        "size_x_loc",
         "rent_to_price",
-        "year_index",
-    ]
+    ] + list(metro_dummies.columns)
 
     y = np.log(X["sale_price"])
     return X[features], y, features
 
 
-def evaluate_models(
-    X: pd.DataFrame,
-    y: pd.Series,
-    random_state: int = 42,
-) -> Tuple[pd.DataFrame, Dict[str, object], tuple]:
-    """Train and compare multiple regression models with train/val/test split."""
-    X_train_full, X_test, y_train_full, y_test = train_test_split(X, y, test_size=0.2, random_state=random_state)
-    X_train, X_val, y_train, y_val = train_test_split(X_train_full, y_train_full, test_size=0.2, random_state=random_state)
+# -----------------------------
+# Walk-forward ML evaluation
+# -----------------------------
+
+
+def walk_forward_validation(
+    df: pd.DataFrame,
+    min_train_years: int = 3,
+    seed: int = 42,
+) -> Tuple[pd.DataFrame, Dict[str, object]]:
+    """Time-based walk-forward validation to test generalization across cycles."""
+    x_all, y_all, features = create_model_matrix(df)
+    temp = df[["date", "year"]].copy()
+    temp = pd.concat([temp.reset_index(drop=True), x_all.reset_index(drop=True), y_all.rename("target")], axis=1)
 
     models = {
         "LinearRegression": LinearRegression(),
         "RandomForest": RandomForestRegressor(
-            n_estimators=400,
-            max_depth=14,
-            min_samples_leaf=3,
-            random_state=random_state,
+            n_estimators=300,
+            max_depth=12,
+            min_samples_leaf=4,
+            random_state=seed,
             n_jobs=-1,
         ),
         "GradientBoosting": GradientBoostingRegressor(
-            n_estimators=350,
+            n_estimators=300,
             learning_rate=0.04,
             max_depth=3,
             subsample=0.85,
-            random_state=random_state,
+            random_state=seed,
         ),
     }
 
-    rows, fitted = [], {}
-    for name, model in models.items():
-        model.fit(X_train, y_train)
+    years = sorted(temp["year"].unique())
+    folds = []
+    best_by_model: Dict[str, List[float]] = {k: [] for k in models}
 
-        pred_train = model.predict(X_train)
-        pred_val = model.predict(X_val)
-        pred_test = model.predict(X_test)
-        rows.append(
-            {
-                "model": name,
-                "r2_train": r2_score(y_train, pred_train),
-                "r2_val": r2_score(y_val, pred_val),
-                "r2_test": r2_score(y_test, pred_test),
-                "rmse_train": np.sqrt(mean_squared_error(y_train, pred_train)),
-                "rmse_val": np.sqrt(mean_squared_error(y_val, pred_val)),
-                "rmse_test": np.sqrt(mean_squared_error(y_test, pred_test)),
-            }
-        )
-        fitted[name] = model
+    for idx in range(min_train_years, len(years)):
+        train_years = years[:idx]
+        test_year = years[idx]
 
-    result = pd.DataFrame(rows).sort_values("rmse_val").reset_index(drop=True)
-    splits = (X_train, X_val, X_test, y_train, y_val, y_test)
-    return result, fitted, splits
+        train = temp[temp["year"].isin(train_years)]
+        test = temp[temp["year"] == test_year]
+
+        X_train = train[features]
+        y_train = train["target"]
+        X_test = test[features]
+        y_test = test["target"]
+
+        for name, model in models.items():
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+            rmse = float(np.sqrt(mean_squared_error(y_test, pred)))
+            r2 = float(r2_score(y_test, pred))
+            folds.append({"model": name, "test_year": test_year, "rmse": rmse, "r2": r2})
+            best_by_model[name].append(rmse)
+
+    fold_df = pd.DataFrame(folds)
+    score = fold_df.groupby("model")["rmse"].mean().sort_values()
+    best_model_name = score.index[0]
+    final_model = models[best_model_name]
+    final_model.fit(x_all, y_all)
+
+    summary = (
+        fold_df.groupby("model")
+        .agg(mean_rmse=("rmse", "mean"), std_rmse=("rmse", "std"), mean_r2=("r2", "mean"))
+        .sort_values("mean_rmse")
+        .reset_index()
+    )
+    return summary, {"best_model_name": best_model_name, "best_model": final_model, "features": features, "folds": fold_df}
+
+
+# -----------------------------
+# Financial engine
+# -----------------------------
 
 
 def npv(rate: float, cashflows: np.ndarray) -> float:
-    periods = np.arange(len(cashflows))
-    return float(np.sum(cashflows / (1 + rate) ** periods))
+    t = np.arange(len(cashflows))
+    return float(np.sum(cashflows / (1 + rate) ** t))
 
 
-def irr(cashflows: np.ndarray, low: float = -0.95, high: float = 2.0) -> float:
-    """Compute IRR using bisection."""
-
+def irr(cashflows: np.ndarray, low: float = -0.90, high: float = 1.50) -> float:
     def f(r: float) -> float:
         return npv(r, cashflows)
 
@@ -231,179 +260,289 @@ def irr(cashflows: np.ndarray, low: float = -0.95, high: float = 2.0) -> float:
         return np.nan
 
     for _ in range(120):
-        mid = (low + high) / 2
+        mid = 0.5 * (low + high)
         fm = f(mid)
-        if abs(fm) < 1e-8:
+        if abs(fm) < 1e-9:
             return mid
         if fl * fm < 0:
             high, fh = mid, fm
         else:
             low, fl = mid, fm
-    return (low + high) / 2
+    return 0.5 * (low + high)
 
 
 @dataclass
-class InvestmentAssumptions:
-    holding_period_years: int = 7
-    purchase_price: float = 850_000
-    down_payment_ratio: float = 0.30
-    annual_interest_rate: float = 0.056
-    interest_rate_mean_reversion: float = 0.35
-    long_run_interest_rate: float = 0.055
-    interest_rate_vol: float = 0.012
-    loan_amort_years: int = 30
-    closing_cost_ratio: float = 0.03
-    renovation_cost: float = 40_000
-    annual_rent: float = 52_000
-    rent_growth_mu: float = 0.025
-    rent_growth_sigma: float = 0.03
-    vacancy_rate: float = 0.06
-    operating_expense_ratio: float = 0.32
-    annual_price_growth_mu: float = 0.03
-    annual_price_growth_sigma: float = 0.07
-    sale_cost_ratio: float = 0.05
-    discount_rate: float = 0.09
+class InvestmentCase:
+    name: str
+    purchase_price: float
+    ltv: float
+    initial_rate: float
+    interest_only_years: int
+    amort_years: int
+    hold_years: int
+    closing_cost_ratio: float
+    renovation_cost: float
+    annual_gross_rent: float
+    rent_growth: float
+    vacancy_rate: float
+    opex_ratio: float
+    exit_cap_rate: float
+    sale_cost_ratio: float
+    discount_rate: float
+    hurdle_irr: float = 0.12
 
 
-def _annual_mortgage_payment(principal: float, annual_rate: float, years: int) -> float:
+def annual_payment(principal: float, rate: float, years: int) -> float:
     if years <= 0:
         return principal
-    if abs(annual_rate) < 1e-12:
+    if rate <= 1e-12:
         return principal / years
-    growth = (1 + annual_rate) ** years
-    return principal * (annual_rate * growth) / (growth - 1)
+    g = (1 + rate) ** years
+    return principal * (rate * g) / (g - 1)
 
 
-def simulate_interest_rate_path(assump: InvestmentAssumptions, rng: np.random.Generator) -> np.ndarray:
-    """Simulate annual variable mortgage rates using a mean-reverting process."""
-    T = assump.holding_period_years
-    rates = np.zeros(T)
-    rates[0] = max(0.005, assump.annual_interest_rate + rng.normal(0, assump.interest_rate_vol / 2))
-    for t in range(1, T):
-        drift = assump.interest_rate_mean_reversion * (assump.long_run_interest_rate - rates[t - 1])
-        shock = assump.interest_rate_vol * rng.normal()
-        rates[t] = np.clip(rates[t - 1] + drift + shock, 0.005, 0.20)
-    return rates
-
-
-def build_cashflows(
-    assump: InvestmentAssumptions,
-    price_growth_path: np.ndarray,
-    rent_growth_path: np.ndarray,
-    interest_rate_path: np.ndarray | None = None,
+def build_cashflow_case(
+    case: InvestmentCase,
+    price_growth: np.ndarray,
+    rent_growth_shock: np.ndarray,
+    interest_rates: np.ndarray,
 ) -> Dict[str, np.ndarray]:
-    """Build annual levered cash flows under dynamic macro/financing paths."""
-    T = assump.holding_period_years
-    assert len(price_growth_path) == T
-    assert len(rent_growth_path) == T
+    T = case.hold_years
+    assert len(price_growth) == T and len(rent_growth_shock) == T and len(interest_rates) == T
 
-    if interest_rate_path is None:
-        interest_rate_path = np.full(T, assump.annual_interest_rate)
-    assert len(interest_rate_path) == T
-
-    purchase = assump.purchase_price
-    debt = purchase * (1 - assump.down_payment_ratio)
-    equity = purchase * assump.down_payment_ratio
-    upfront = equity + assump.closing_cost_ratio * purchase + assump.renovation_cost
+    debt = case.purchase_price * case.ltv
+    equity = case.purchase_price * (1 - case.ltv)
+    upfront = equity + case.renovation_cost + case.closing_cost_ratio * case.purchase_price
 
     outstanding = debt
-    annual_rent = assump.annual_rent
-    cf = np.zeros(T + 1)
-    cf[0] = -upfront
+    prop_value = case.purchase_price
+    rent = case.annual_gross_rent
 
-    property_value = purchase
+    cfs = np.zeros(T + 1)
+    cfs[0] = -upfront
+
     for y in range(1, T + 1):
-        rate_y = interest_rate_path[y - 1]
-        property_value *= (1 + price_growth_path[y - 1])
-        annual_rent *= (1 + rent_growth_path[y - 1])
+        prop_value *= 1 + price_growth[y - 1]
+        rent *= 1 + case.rent_growth + rent_growth_shock[y - 1]
 
-        effective_gross_income = annual_rent * (1 - assump.vacancy_rate)
-        operating_expenses = assump.operating_expense_ratio * effective_gross_income
-        noi = effective_gross_income - operating_expenses
+        egi = rent * (1 - case.vacancy_rate)
+        opex = egi * case.opex_ratio
+        noi = egi - opex
 
-        remaining_term = max(assump.loan_amort_years - (y - 1), 1)
-        annual_payment = _annual_mortgage_payment(outstanding, rate_y, remaining_term)
-        interest = outstanding * rate_y
-        principal = max(annual_payment - interest, 0)
-        outstanding = max(outstanding - principal, 0)
-        cf[y] = noi - annual_payment
+        rate = max(0.001, interest_rates[y - 1])
+        if y <= case.interest_only_years:
+            debt_service = outstanding * rate
+            principal = 0.0
+        else:
+            remain = max(case.amort_years - (y - case.interest_only_years - 1), 1)
+            debt_service = annual_payment(outstanding, rate, remain)
+            principal = max(debt_service - outstanding * rate, 0.0)
+        outstanding = max(outstanding - principal, 0.0)
 
-    sale_proceeds = property_value * (1 - assump.sale_cost_ratio) - outstanding
-    cf[-1] += sale_proceeds
+        cfs[y] = noi - debt_service
 
-    cumulative = np.cumsum(cf)
-    positive_idx = np.where(cumulative > 0)[0]
-    payback_period = int(positive_idx[0]) if len(positive_idx) > 0 else np.nan
+    terminal_noi = rent * (1 - case.vacancy_rate) * (1 - case.opex_ratio)
+    exit_value = terminal_noi / max(case.exit_cap_rate, 0.01)
+    net_sale = exit_value * (1 - case.sale_cost_ratio) - outstanding
+    cfs[-1] += net_sale
+
+    cumulative = np.cumsum(cfs)
+    pos = np.where(cumulative > 0)[0]
+    payback = int(pos[0]) if len(pos) else np.nan
 
     return {
-        "cashflows": cf,
-        "property_value_terminal": property_value,
-        "sale_proceeds": sale_proceeds,
-        "outstanding_balance": outstanding,
-        "payback_period": payback_period,
+        "cashflows": cfs,
+        "exit_value": exit_value,
+        "net_sale": net_sale,
+        "payback": payback,
     }
 
 
-def monte_carlo_investment(
-    assump: InvestmentAssumptions,
-    n_sims: int = 10000,
-    seed: int = 123,
-) -> pd.DataFrame:
-    """Monte Carlo simulation for IRR and NPV under uncertainty.
+# -----------------------------
+# Correlated regime Monte Carlo
+# -----------------------------
 
-    Uncertain variables:
-    - annual property price growth
-    - annual rental growth
-    - annual borrowing rate (mean-reverting)
-    """
+
+@dataclass
+class RegimeSpec:
+    name: str
+    prob: float
+    mean_price_growth: float
+    mean_rent_growth_shock: float
+    mean_rate_shift: float
+
+
+def simulate_correlated_paths(
+    n_sims: int,
+    years: int,
+    base_rate: float,
+    corr_matrix: np.ndarray,
+    vol_price: float,
+    vol_rent: float,
+    vol_rate: float,
+    regimes: List[RegimeSpec],
+    seed: int = 7,
+) -> Dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
-    T = assump.holding_period_years
+    L = np.linalg.cholesky(corr_matrix)
 
-    records = []
-    for _ in range(n_sims):
-        price_growth = rng.normal(assump.annual_price_growth_mu, assump.annual_price_growth_sigma, T)
-        rent_growth = rng.normal(assump.rent_growth_mu, assump.rent_growth_sigma, T)
-        interest_path = simulate_interest_rate_path(assump, rng)
+    regime_probs = np.array([r.prob for r in regimes], dtype=float)
+    regime_probs = regime_probs / regime_probs.sum()
 
-        cfs = build_cashflows(assump, price_growth, rent_growth, interest_path)
-        cf = cfs["cashflows"]
+    price = np.zeros((n_sims, years))
+    rent = np.zeros((n_sims, years))
+    rates = np.zeros((n_sims, years))
+    regime_names = []
 
-        records.append(
+    for i in range(n_sims):
+        reg = regimes[rng.choice(len(regimes), p=regime_probs)]
+        regime_names.append(reg.name)
+
+        z = rng.normal(size=(years, 3)) @ L.T
+        price[i] = reg.mean_price_growth + vol_price * z[:, 0]
+        rent[i] = reg.mean_rent_growth_shock + vol_rent * z[:, 1]
+
+        rt = np.zeros(years)
+        rt[0] = base_rate + reg.mean_rate_shift + vol_rate * z[0, 2]
+        for t in range(1, years):
+            rt[t] = 0.55 * rt[t - 1] + 0.45 * (base_rate + reg.mean_rate_shift) + vol_rate * z[t, 2]
+        rates[i] = np.clip(rt, 0.005, 0.16)
+
+    return {"price": price, "rent": rent, "rates": rates, "regime": np.array(regime_names)}
+
+
+def monte_carlo_case(case: InvestmentCase, n_sims: int = 15000, seed: int = 42) -> pd.DataFrame:
+    regimes = [
+        RegimeSpec("Bull", 0.25, 0.055, 0.020, -0.010),
+        RegimeSpec("Base", 0.55, 0.030, 0.005, 0.000),
+        RegimeSpec("Bear", 0.20, -0.010, -0.010, 0.015),
+    ]
+
+    corr = np.array(
+        [
+            [1.00, 0.55, -0.45],
+            [0.55, 1.00, -0.35],
+            [-0.45, -0.35, 1.00],
+        ]
+    )
+
+    paths = simulate_correlated_paths(
+        n_sims=n_sims,
+        years=case.hold_years,
+        base_rate=case.initial_rate,
+        corr_matrix=corr,
+        vol_price=0.08,
+        vol_rent=0.035,
+        vol_rate=0.012,
+        regimes=regimes,
+        seed=seed,
+    )
+
+    rows = []
+    for i in range(n_sims):
+        cf = build_cashflow_case(case, paths["price"][i], paths["rent"][i], paths["rates"][i])["cashflows"]
+        r_irr = irr(cf)
+        r_npv = npv(case.discount_rate, cf)
+        rows.append(
             {
-                "irr": irr(cf),
-                "npv": npv(assump.discount_rate, cf),
-                "total_return": (cf.sum() / -cf[0]) - 1,
-                "terminal_value": cfs["property_value_terminal"],
-                "sale_proceeds": cfs["sale_proceeds"],
-                "avg_interest_rate": float(np.mean(interest_path)),
+                "case": case.name,
+                "regime": paths["regime"][i],
+                "irr": r_irr,
+                "npv": r_npv,
+                "avg_rate": float(paths["rates"][i].mean()),
             }
         )
 
-    return pd.DataFrame(records)
+    sim = pd.DataFrame(rows)
+    var_5 = sim["npv"].quantile(0.05)
+    cvar_5 = sim.loc[sim["npv"] <= var_5, "npv"].mean()
+
+    sim.attrs["risk_summary"] = {
+        "prob_npv_negative": float((sim["npv"] < 0).mean()),
+        "prob_irr_below_hurdle": float((sim["irr"] < case.hurdle_irr).mean()),
+        "var_5_npv": float(var_5),
+        "cvar_5_npv": float(cvar_5),
+    }
+    return sim
 
 
-def run_sensitivity_grid(base: InvestmentAssumptions) -> pd.DataFrame:
-    """Grid sensitivity analysis across key assumptions."""
-    interest_grid = [base.annual_interest_rate - 0.015, base.annual_interest_rate, base.annual_interest_rate + 0.015]
-    price_grid = [base.purchase_price * 0.9, base.purchase_price, base.purchase_price * 1.1]
-    rent_grid = [base.annual_rent * 0.9, base.annual_rent, base.annual_rent * 1.1]
+def evaluate_investment_decision(sim: pd.DataFrame, hurdle_irr: float) -> Dict[str, float | str]:
+    rs = sim.attrs.get("risk_summary", {})
+    median_irr = float(sim["irr"].median())
+    median_npv = float(sim["npv"].median())
 
-    rows = []
-    for ir in interest_grid:
-        for pp in price_grid:
-            for rent in rent_grid:
-                a = InvestmentAssumptions(**{**base.__dict__, "annual_interest_rate": ir, "purchase_price": pp, "annual_rent": rent})
-                price_path = np.full(a.holding_period_years, a.annual_price_growth_mu)
-                rent_path = np.full(a.holding_period_years, a.rent_growth_mu)
-                rate_path = np.full(a.holding_period_years, a.annual_interest_rate)
-                cf = build_cashflows(a, price_path, rent_path, rate_path)["cashflows"]
-                rows.append(
-                    {
-                        "interest_rate": ir,
-                        "purchase_price": pp,
-                        "annual_rent": rent,
-                        "irr": irr(cf),
-                        "npv": npv(a.discount_rate, cf),
-                    }
-                )
-    return pd.DataFrame(rows)
+    if median_npv > 0 and rs.get("prob_npv_negative", 1.0) < 0.35 and median_irr >= hurdle_irr:
+        rec = "Invest"
+    elif median_npv > 0 and rs.get("prob_npv_negative", 1.0) < 0.50:
+        rec = "Conditional Invest"
+    else:
+        rec = "Do Not Invest"
+
+    return {
+        "median_irr": median_irr,
+        "median_npv": median_npv,
+        "recommendation": rec,
+        **rs,
+    }
+
+
+def default_investment_cases() -> List[InvestmentCase]:
+    return [
+        InvestmentCase(
+            name="Case A - Core Stabilized",
+            purchase_price=1_250_000,
+            ltv=0.60,
+            initial_rate=0.055,
+            interest_only_years=1,
+            amort_years=25,
+            hold_years=7,
+            closing_cost_ratio=0.028,
+            renovation_cost=80_000,
+            annual_gross_rent=120_000,
+            rent_growth=0.028,
+            vacancy_rate=0.05,
+            opex_ratio=0.34,
+            exit_cap_rate=0.058,
+            sale_cost_ratio=0.045,
+            discount_rate=0.095,
+            hurdle_irr=0.11,
+        ),
+        InvestmentCase(
+            name="Case B - Value Add",
+            purchase_price=980_000,
+            ltv=0.70,
+            initial_rate=0.060,
+            interest_only_years=2,
+            amort_years=25,
+            hold_years=7,
+            closing_cost_ratio=0.030,
+            renovation_cost=170_000,
+            annual_gross_rent=96_000,
+            rent_growth=0.035,
+            vacancy_rate=0.07,
+            opex_ratio=0.37,
+            exit_cap_rate=0.062,
+            sale_cost_ratio=0.050,
+            discount_rate=0.105,
+            hurdle_irr=0.13,
+        ),
+        InvestmentCase(
+            name="Case C - Opportunistic",
+            purchase_price=1_500_000,
+            ltv=0.75,
+            initial_rate=0.064,
+            interest_only_years=2,
+            amort_years=30,
+            hold_years=7,
+            closing_cost_ratio=0.032,
+            renovation_cost=250_000,
+            annual_gross_rent=132_000,
+            rent_growth=0.038,
+            vacancy_rate=0.09,
+            opex_ratio=0.39,
+            exit_cap_rate=0.067,
+            sale_cost_ratio=0.052,
+            discount_rate=0.115,
+            hurdle_irr=0.15,
+        ),
+    ]

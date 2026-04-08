@@ -1,24 +1,22 @@
-# Research Summary: Data-Driven Real Estate Investment Decision Model under Uncertainty
+# Research Summary: Investment-Grade Real Estate Decision Model
 
 ## Introduction
-Real-estate underwriting is often deterministic despite substantial macro and financing uncertainty. This project develops an integrated quantitative framework combining machine learning valuation, levered cash-flow analytics, and Monte Carlo simulation for risk-aware investment decisions.
+This project addresses real-estate investing as a capital allocation problem where uncertainty in growth, financing, and exit conditions drives outcomes more than point forecasts.
 
 ## Methodology
-- **Data design:** synthetic panel with realistic relationships among property features, location quality, macro state variables, and time dynamics.
-- **Predictive modeling:** Linear Regression, Random Forest, and Gradient Boosting with train/validation/test evaluation via R² and RMSE.
-- **Financial modeling:** annual levered cash-flow engine with acquisition costs, amortizing debt, NOI, and terminal sale.
-- **Risk modeling:** Monte Carlo simulation (12,000 paths) with uncertainty in property growth, rent growth, and borrowing-rate paths via mean-reverting dynamics.
-- **Sensitivity/scenarios:** deterministic grid for interest rate, purchase price, and rent; Bear/Base/Bull scenario comparison.
+- Built a hybrid dataset using real macro and metro housing index anchors plus structural property-level features.
+- Implemented walk-forward validation for ML valuation (Linear, Random Forest, Gradient Boosting).
+- Constructed realistic levered cash-flow engine with LTV, interest-only structure, amortization, NOI, and cap-rate-based exit value.
+- Ran 12,000-path correlated regime Monte Carlo (Bull/Base/Bear) jointly simulating price growth, rent growth shocks, and interest-rate paths.
 
 ## Results
-- Ensemble models outperform linear baselines in out-of-sample valuation quality.
-- Return distributions highlight meaningful tail risk even when median outcomes are favorable.
-- Interest-rate paths and entry valuation are dominant drivers of NPV and IRR.
+- Time-aware validation improves confidence in model portability across market cycles.
+- Risk-adjusted evaluation differentiates strategies more clearly than expected IRR alone.
+- Value-Add profile generally dominates on risk-adjusted economics; Opportunistic profile shows materially higher tail impairment risk.
 
 ## Limitations
-- Synthetic data does not capture full market microstructure and transaction frictions.
-- Gaussian innovation assumptions may underrepresent heavy-tail events.
-- Model excludes taxes, major capex shocks, and active refinancing/optionality.
+- Bundled data is compact and representative, not full-production breadth.
+- Correlation/regime parameters are calibrated for interpretability rather than strict market-implied estimation.
 
 ## Conclusion
-The project demonstrates a graduate-level decision framework for real-estate capital allocation: predictive valuation + financing-aware cash-flow modeling + probabilistic downside quantification.
+The framework closes the gap between quant research and actionable investment decisions by combining predictive accuracy, financing realism, and downside-aware portfolio judgment.

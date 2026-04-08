@@ -1,62 +1,39 @@
-# Data-Driven Real Estate Investment Decision Model under Uncertainty
+# Investment-Grade Real Estate Capital Allocation Model
 
-A publication-quality quantitative finance project integrating ML valuation, stochastic risk simulation, and leveraged real-estate cash-flow analysis.
+A professional quantitative research + investment decision repository that combines:
+- hybrid real-data underwriting,
+- walk-forward machine-learning valuation,
+- financing-aware levered cash-flow analytics,
+- correlated regime Monte Carlo risk modeling,
+- explicit investment recommendations.
 
-## Problem Statement
-This project builds a decision engine for real-estate investments under uncertainty:
-- estimate fair value from micro and macro features,
-- quantify full risk distributions of returns (not just point forecasts),
-- test economic fragility to financing, entry valuation, and rental assumptions.
+## Why this project matters
+Most underwriting tools optimize for expected return and underweight tail risk. This repository reframes real-estate selection as a **capital allocation problem under uncertainty**.
 
-## Methodology
+## Core outputs
+1. **Model reliability:** walk-forward out-of-time ML validation.
+2. **Deal economics:** realistic cash-flow model (LTV, interest-only period, amortization, opex, exit cap).
+3. **Risk diagnostics:** P(NPV<0), P(IRR<hurdle), VaR, CVaR from correlated simulations.
+4. **Decision support:** Invest / Conditional Invest / Do Not Invest recommendations.
 
-### 1) Synthetic but economically grounded data
-- 30,000 observations (3,000 properties × 10 years).
-- Features include property fundamentals, neighborhood indicators, and macro drivers.
-- Structural data-generation process includes cyclical and trend behavior.
+## Repository structure
+- `src/real_estate_investment_model.py` — full modeling engine.
+- `notebooks/Data_Driven_Real_Estate_Investment_Decision_Model.ipynb` — investment-report-style notebook.
+- `data/raw/` — bundled macro and housing index samples.
+- `data/README.md` — data provenance and limitation notes.
+- `deliverables/` — IC memo, executive summary, slide bullets, CV/SOP outputs.
+- `REPOSITORY_AUDIT.md` — weaknesses identified and upgrades delivered.
 
-### 2) Machine learning valuation
-- Models: Linear Regression, Random Forest, Gradient Boosting.
-- Validation design: train/validation/test split.
-- Metrics: R² and RMSE on all splits.
-- Model selection by lowest validation RMSE.
-
-### 3) Levered financial model
-- Full annual cash-flow stack:
-  - acquisition + closing + renovation,
-  - leveraged financing with amortization,
-  - NOI after vacancy + operating costs,
-  - terminal exit net of transaction costs and remaining debt.
-- Outputs:
-  - NPV,
-  - IRR,
-  - payback period.
-
-### 4) Monte Carlo risk simulation
-- 12,000 paths.
-- Stochastic drivers:
-  - property appreciation,
-  - rental growth,
-  - borrowing rate path (mean-reverting process).
-- Output distributions for IRR, NPV, sale proceeds, and downside probabilities.
-
-### 5) Sensitivity and scenarios
-- Grid sensitivity for interest rate, purchase price, and annual rent.
-- Bear/Base/Bull scenario comparison for median return and loss probability.
-
-## Repository Structure
-- `src/real_estate_investment_model.py` — modular quant library.
-- `notebooks/Data_Driven_Real_Estate_Investment_Decision_Model.ipynb` — complete notebook.
-- `research_summary.md` — concise research-style summary.
-- `results/figures/` — exported publication-ready figures.
-
-## Reproducibility
+## Quick start
 ```bash
-pip install numpy pandas scikit-learn matplotlib seaborn
+pip install numpy pandas scikit-learn matplotlib seaborn jupyter
 jupyter notebook notebooks/Data_Driven_Real_Estate_Investment_Decision_Model.ipynb
 ```
 
-## Key Insights
-- Nonlinear ML materially improves valuation accuracy versus linear baselines.
-- Strong median returns can coexist with significant downside tail risk.
-- Financing conditions and entry valuation are first-order determinants of viability.
+## Capital Allocation Insight
+Without this framework, an investor may select the highest-point-estimate IRR strategy and miss structural downside from correlated rent/rate shocks. With this framework, decisions are explicitly tied to mandate-relevant risk constraints (hurdle compliance, NPV impairment probability, left-tail severity), resulting in materially different position sizing and strategy selection.
+
+## Typical recommendation pattern
+- **Case A (Core):** defensive, resilient, lower upside.
+- **Case B (Value-Add):** best balance of expected value and controlled downside.
+- **Case C (Opportunistic):** conditional or reject unless entry basis / financing improves.
