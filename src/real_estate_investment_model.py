@@ -372,6 +372,17 @@ class RegimeSpec:
     mean_rate_shift: float
 
 
+@dataclass
+class DecisionPolicy:
+    """Formal investment committee decision policy."""
+
+    max_prob_negative_npv_invest: float = 0.35
+    max_prob_negative_npv_conditional: float = 0.50
+    max_prob_irr_below_hurdle_invest: float = 0.45
+    min_median_npv_invest: float = 0.0
+    min_median_npv_conditional: float = -25_000.0
+
+
 def simulate_correlated_paths(
     n_sims: int,
     years: int,
@@ -466,14 +477,32 @@ def monte_carlo_case(case: InvestmentCase, n_sims: int = 15000, seed: int = 42) 
     return sim
 
 
-def evaluate_investment_decision(sim: pd.DataFrame, hurdle_irr: float) -> Dict[str, float | str]:
+def evaluate_investment_decision(
+    sim: pd.DataFrame,
+    hurdle_irr: float,
+    policy: DecisionPolicy | None = None,
+) -> Dict[str, float | str]:
+    """Return formal decision label using risk-adjusted committee policy."""
+    if policy is None:
+        policy = DecisionPolicy()
+
     rs = sim.attrs.get("risk_summary", {})
     median_irr = float(sim["irr"].median())
     median_npv = float(sim["npv"].median())
+    p_npv_neg = float(rs.get("prob_npv_negative", 1.0))
+    p_irr_fail = float(rs.get("prob_irr_below_hurdle", 1.0))
 
-    if median_npv > 0 and rs.get("prob_npv_negative", 1.0) < 0.35 and median_irr >= hurdle_irr:
+    if (
+        median_npv >= policy.min_median_npv_invest
+        and p_npv_neg <= policy.max_prob_negative_npv_invest
+        and p_irr_fail <= policy.max_prob_irr_below_hurdle_invest
+        and median_irr >= hurdle_irr
+    ):
         rec = "Invest"
-    elif median_npv > 0 and rs.get("prob_npv_negative", 1.0) < 0.50:
+    elif (
+        median_npv >= policy.min_median_npv_conditional
+        and p_npv_neg <= policy.max_prob_negative_npv_conditional
+    ):
         rec = "Conditional Invest"
     else:
         rec = "Do Not Invest"
@@ -482,6 +511,12 @@ def evaluate_investment_decision(sim: pd.DataFrame, hurdle_irr: float) -> Dict[s
         "median_irr": median_irr,
         "median_npv": median_npv,
         "recommendation": rec,
+        "decision_policy": (
+            f"Invest if median NPV≥{policy.min_median_npv_invest:,.0f}, "
+            f"P(NPV<0)≤{policy.max_prob_negative_npv_invest:.0%}, "
+            f"P(IRR<hurdle)≤{policy.max_prob_irr_below_hurdle_invest:.0%}, "
+            f"and median IRR≥hurdle."
+        ),
         **rs,
     }
 

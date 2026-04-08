@@ -1,19 +1,27 @@
-# Data Documentation
+# Data Documentation and Credibility Notes
 
-## Included files
-- `raw/fred_macro_sample.csv`: FRED-style macro indicators (policy rate, mortgage rate, CPI, unemployment, GDP growth).
-- `raw/zillow_zhvi_sample.csv`: ZHVI/rent-index style metro panel (Austin, Phoenix, Tampa).
+## Included datasets
+- `raw/fred_macro_sample.csv`
+  - Variables: fed funds proxy, 30Y mortgage rate proxy, CPI YoY, unemployment, GDP YoY.
+  - Intended to represent the macro state vector that drives financing and demand conditions.
+- `raw/zillow_zhvi_sample.csv`
+  - Variables: metro-level home value index proxy (`zhvi`) and rent index proxy.
+  - Markets included: Austin, Phoenix, Tampa.
 
-## Source notes
-These files are compact, project-bundled samples shaped from publicly reported series patterns for reproducibility in constrained environments.
+## Source rationale
+The project uses compact, version-controlled samples that mirror publicly reported FRED and ZHVI series behavior so the full workflow is reproducible in a constrained environment.
 
-## How hybrid data is created
-`build_hybrid_transaction_dataset` combines:
-1. real-index anchors (`zhvi`, `rent_index`, macro columns), and
-2. structural assumptions for property-level heterogeneity (size, quality, age, location).
+## Why this supports credible decisions
+- Real macro and housing-directional information anchors valuation and stress testing.
+- Synthetic property-level heterogeneity is only used to complete cross-sectional underwriting features, not to invent macro regime behavior.
 
-This design preserves realism while enabling full end-to-end modeling without external API calls.
+## Limitations and investment implications
+1. **Coverage limitation:** three metros and semiannual observations understate regional dispersion.
+   - Decision impact: treat outputs as screening and policy calibration, not market-by-market final IC approval.
+2. **Calibration limitation:** regime probabilities and correlations are practitioner-calibrated.
+   - Decision impact: stress-test recommendations under alternate regime priors before committing capital.
+3. **Data granularity limitation:** no parcel-level capex history, taxes, or lease rolls.
+   - Decision impact: incorporate deal-level due diligence overlays prior to execution.
 
-## Limitations
-- Included samples are reduced in scope and frequency.
-- For production deployment, connect directly to full FRED/Zillow pipelines and transaction-level county assessor/MLS data.
+## Production extension path
+For deployment, connect directly to full FRED/Zillow feeds and property-level transaction/lease data, then retrain walk-forward models quarterly with formal model risk governance.

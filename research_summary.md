@@ -1,22 +1,27 @@
-# Research Summary: Investment-Grade Real Estate Decision Model
+# Research Summary: Investment-Grade Real Estate Decision Engine
 
 ## Introduction
-This project addresses real-estate investing as a capital allocation problem where uncertainty in growth, financing, and exit conditions drives outcomes more than point forecasts.
+This project treats real-estate investing as a risk-adjusted capital allocation problem, motivated by practical underwriting failures where base-case returns obscured downside impairment.
 
 ## Methodology
-- Built a hybrid dataset using real macro and metro housing index anchors plus structural property-level features.
-- Implemented walk-forward validation for ML valuation (Linear, Random Forest, Gradient Boosting).
-- Constructed realistic levered cash-flow engine with LTV, interest-only structure, amortization, NOI, and cap-rate-based exit value.
-- Ran 12,000-path correlated regime Monte Carlo (Bull/Base/Bear) jointly simulating price growth, rent growth shocks, and interest-rate paths.
+- Hybrid data design: macro and metro housing index anchors with structured property-level heterogeneity.
+- Walk-forward ML validation to assess out-of-time valuation robustness.
+- Financing-aware levered cash-flow model (LTV, IO period, amortization, NOI, exit-cap terminal valuation).
+- Correlated Bull/Base/Bear Monte Carlo jointly simulating price growth, rent shocks, and financing rates.
+- Policy-based decision rule producing Invest / Conditional / Reject outputs.
 
-## Results
-- Time-aware validation improves confidence in model portability across market cycles.
-- Risk-adjusted evaluation differentiates strategies more clearly than expected IRR alone.
-- Value-Add profile generally dominates on risk-adjusted economics; Opportunistic profile shows materially higher tail impairment risk.
+## Decision-Relevant Findings
+- Risk-adjusted strategy ranking diverges from expected IRR ranking.
+- Financing path volatility is a major determinant of equity downside.
+- Exit-cap stress materially affects terminal value and should constrain acquisition basis.
+- Tail metrics (VaR/CVaR) are operational inputs for position sizing and concentration limits.
 
 ## Limitations
-- Bundled data is compact and representative, not full-production breadth.
-- Correlation/regime parameters are calibrated for interpretability rather than strict market-implied estimation.
+- Compact bundled data supports reproducibility but not full production breadth.
+- Regime probabilities and correlation parameters are calibrated for disciplined screening rather than market-implied precision.
 
 ## Conclusion
-The framework closes the gap between quant research and actionable investment decisions by combining predictive accuracy, financing realism, and downside-aware portfolio judgment.
+The framework bridges quant research and investment governance by coupling predictive modeling with decision policy, downside controls, and capital-allocation judgment.
+
+## Why this demonstrates readiness for MIT MFin
+It demonstrates the ability to integrate statistics, asset-pricing intuition, and institutional decision logic into a coherent investment process—precisely the mindset expected of an incoming MFin candidate.

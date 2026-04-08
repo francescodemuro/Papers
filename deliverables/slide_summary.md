@@ -1,25 +1,29 @@
 # Slide-Style Structured Summary
 
-## Slide 1 — Problem
-- Capital allocation in real estate fails when underwriting ignores regime risk.
-- Need: one framework connecting valuation, financing, and downside risk.
+## Slide 1 — Investment Problem
+- Real-estate allocation fails when underwriting ignores correlated downside risk.
+- Objective: select strategies that survive adverse regimes, not just look strong in base case.
 
-## Slide 2 — Data & Modeling Stack
-- Hybrid data: macro + housing index anchors + transaction-level structure.
-- ML valuation with walk-forward testing.
-- Levered cash-flow underwriting.
-- Correlated Monte Carlo with Bull/Base/Bear regimes.
+## Slide 2 — Approach
+- Hybrid data (macro + housing index + property-level heterogeneity).
+- Walk-forward ML valuation.
+- Financing-aware levered cash-flow model.
+- Correlated Bull/Base/Bear Monte Carlo.
 
-## Slide 3 — Key Findings
-- Value-Add case offers strongest risk-adjusted economics.
-- Core case is robust but lower upside.
-- Opportunistic case breaches risk tolerance under current rates.
+## Slide 3 — Decision Rule
+- Invest / Conditional / Reject framework.
+- Approval tied to median NPV, hurdle compliance, and downside thresholds.
 
-## Slide 4 — Risk Lens
-- Monitor P(NPV<0), P(IRR<hurdle), VaR/CVaR.
-- Debt cost and exit cap-rate are first-order drivers.
+## Slide 4 — Key Insights
+- Risk-adjusted ranking differs from expected-return ranking.
+- Financing path risk is a core equity determinant.
+- Exit-cap assumptions drive terminal-value fragility.
 
-## Slide 5 — Capital Allocation Recommendation
-- Allocate to Case B with covenants and milestone-based capex release.
-- Retain selective Case A exposure for downside protection.
-- Avoid Case C unless pricing and financing reset materially.
+## Slide 5 — Allocation Recommendation
+- Invest: Value-Add
+- Conditional: Core
+- Reject: Opportunistic (pending repricing / debt reset)
+
+## Slide 6 — MIT MFin Readiness Signal
+- Integrates quant methods with investment judgment and policy-grade decisioning.
+- Demonstrates ability to translate models into committee-ready recommendations.

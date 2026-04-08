@@ -1,39 +1,41 @@
 # Investment Committee Memo
 
 ## Executive Summary
-We evaluated three residential acquisition strategies (Core Stabilized, Value-Add, Opportunistic) using a hybrid real-data underwriting model with walk-forward ML valuation and correlated regime Monte Carlo. Results indicate:
-- **Case A (Core)**: resilient downside profile, moderate upside, highest stability.
-- **Case B (Value-Add)**: strongest risk-adjusted expected value with manageable tails.
-- **Case C (Opportunistic)**: elevated tail risk and frequent hurdle shortfall.
+This analysis evaluates three allocation candidates (Core Stabilized, Value-Add, Opportunistic) under correlated macro/market uncertainty. The recommendation is **Invest (Case B Value-Add)**, **Conditional Invest (Case A Core)**, and **Reject (Case C Opportunistic)** under current underwriting assumptions.
 
-Preliminary recommendation: **Invest in Case B**, **Maintain selective allocation to Case A**, and **Do Not Invest in Case C under current financing regime** unless entry basis is repriced or debt terms improve.
+The conclusion is risk-adjusted: approval depends on downside containment (P(NPV<0), P(IRR<hurdle), CVaR), not headline return projections.
 
-## Methodology
-- Data: Metro housing index + macro indicators + transaction-level structural synthesis.
-- Valuation: Walk-forward model comparison across Linear, Random Forest, Gradient Boosting.
-- Risk engine: 12,000-path correlated Monte Carlo with Bull/Base/Bear regimes.
-- Decision metrics: median NPV, median IRR, P(NPV<0), P(IRR<hurdle), VaR(5%), CVaR(5%).
+## Investment Context
+The framework is designed for real allocation constraints: leverage, financing-path risk, execution uncertainty, and exit-liquidity repricing. It addresses the practical failure mode where base-case IRR appears attractive but capital impairment risk is underpriced.
 
-## Key Metrics Interpreted
-- **NPV distribution** captures expected equity value creation.
-- **IRR hurdle probability** determines mandate compliance.
-- **VaR/CVaR** captures left-tail capital impairment risk.
+## Decision Rule (Formal)
+- **Invest** if median NPV ≥ 0, P(NPV<0) ≤ policy threshold, P(IRR<hurdle) ≤ threshold, and median IRR ≥ hurdle.
+- **Conditional Invest** if economics are near-positive but one risk threshold is marginal.
+- **Reject** if downside metrics or hurdle-failure risk breach policy limits.
 
-## Risks
-1. Macro shocks: rate persistence above expected path compresses levered cash flow.
-2. Rent-growth disappointment in weak labor regimes reduces NOI and exit value.
-3. Exit-liquidity risk from cap-rate expansion.
+## Key Investment Insights
+1. **Risk-adjusted ranking differs from expected-return ranking.**
+   Capital should shift toward strategies with lower tail impairment even when median IRR is modestly lower.
+2. **Debt-cost persistence is a central equity risk.**
+   Allocation should tighten leverage tolerance when financing volatility is elevated.
+3. **Value-add upside is execution-sensitive.**
+   Approvals should include milestone-based capex release and leasing checkpoints.
+4. **Exit-cap assumptions dominate terminal uncertainty.**
+   Conservative acquisition basis is more valuable than optimistic rent-growth narratives.
+5. **Tail metrics should drive sizing.**
+   VaR/CVaR should directly inform concentration caps at portfolio level.
+6. **Regime awareness changes timing decisions.**
+   Conditional approvals linked to financing triggers outperform unconditional approvals.
 
-## Recommendation and Conditions
-### Recommended allocation
-- Primary: Case B (Value-Add) with strict execution controls.
-- Secondary: Case A as defensive ballast.
-- Avoid Case C unless one of the following occurs:
-  - purchase discount >10%, or
-  - debt spread compression >100 bps, or
-  - verified rent uplift with pre-leasing support.
+## Key Risks
+- Prolonged high-rate environment compressing levered free cash flow.
+- Demand softening reducing rent growth and prolonging stabilization.
+- Exit liquidity repricing via cap-rate expansion.
 
-### Monitoring triggers
-- Mortgage spread vs policy rate.
-- Metro-level rent growth momentum.
-- Cap-rate repricing by peer transactions.
+## Recommendation
+- **Primary allocation:** Case B (Value-Add), with execution covenants.
+- **Secondary allocation:** Case A (Core) for downside ballast.
+- **No current allocation:** Case C unless entry basis and debt terms reset materially.
+
+## Why this matters for capital allocation
+This framework changes behavior from “approve highest expected IRR” to “allocate where expected value survives adverse states,” improving robustness of portfolio outcomes.
